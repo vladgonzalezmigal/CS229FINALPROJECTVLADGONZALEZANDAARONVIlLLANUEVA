@@ -1,1 +1,329 @@
+from sklearn.cross_decomposition import PLSRegression
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.model_selection import cross_val_predict
+import numpy as np
+import yfinance as yf
+import pandas as pd
+from keras.models import Sequential
+from keras.layers import Dense, LSTM
+from sklearn.preprocessing import MinMaxScaler
+from pandas.core.indexes.base import Index
+from keras.models import Sequential
+from keras.layers import Dense, GRU
+from sklearn.preprocessing import MinMaxScaler
+import matplotlib.pyplot as plt
+# Helper functions and data 
+# datasets 
+HIGH_BETA = ['TSLA', 'NVDA', 'AAPL', 'BBY', 'AMZN']
+MID_BETA = ['BRK-B', 'SPY', 'CVX', 'GOOG', 'WFC' ]
+LOW_BETA = ['KO', 'TM', 'PG', 'JNJ', 'WMT']
+
+# BETAS : 0.58 , 0.64, 0.44, 0.66, 0.50 , 0.87, 1.00, 1.14 , 1.06, 1.14, 2.08, 1.42, 1.19, 1.52, 1.12
+BETAS = [0.44, 0.50,  0.58, 0.64, 0.66,0.87, 1.00, 1.06,  1.12, 1.14, 1.14, 1.19, 1.42, 1.52, 2.08]
+STOCKS = ['PG', 'WMT', 'KO', 'TM', 'JNJ', 'BRK-B', 'SPY', 'GOOG', 'AMZN' ,'CVX', 'WFC', 'AAPL', 'NVDA', 'BBY', 'TSLA']
+
+# STOCK_LIST = 
+
+#Find optimal number of components for PLS 
+
+def optimise_pls_cv(X, y, n_comp, plot_components=True):
+ 
+    '''Run PLS including a variable number of components, up to n_comp,
+       and calculate MSE '''
+ 
+    mse = []
+    component = np.arange(1, n_comp)
+ 
+    for i in component:
+        pls = PLSRegression(n_components=i)
+ 
+        # Cross-validation
+        y_cv = cross_val_predict(pls, X, y, cv=10)
+ 
+        mse.append(mean_squared_error(y, y_cv))
+ 
+        comp = 100*(i+1)/40
+    # Calculate and print the position of minimum in MSE
+    msemin = np.argmin(mse)
+    print("Suggested number of components: ", msemin+1)
+#     stdout.write("\n")
+ 
+    if plot_components is True:
+        with plt.style.context(('ggplot')):
+            plt.plot(component, np.array(mse), '-v', color = 'blue', mfc='blue')
+            plt.plot(component[msemin], np.array(mse)[msemin], 'P', ms=10, mfc='red')
+            plt.xlabel('Number of PLS components')
+            plt.ylabel('MSE')
+            plt.title('PLS')
+            plt.xlim(left=-1)
+ 
+        plt.show()
+ 
+    # Define PLS object with optimal number of components
+    pls_opt = PLSRegression(n_components=msemin+1)
+    return (msemin + 1)
+
+def buy_sell(signal):
+  Buy = []
+  Sell = []
+  flag = -1
+
+  for i in range(0, len(signal)): 
+    if signal['MACD'][i] > signal['Signal Line'][i]:
+      Sell.append(np.nan)
+      if flag != 1: 
+        Buy.append(signal['Close'][i])
+        flag = 1
+      else: 
+        Buy.append(np.nan)
+    elif signal['MACD'][i] < signal['Signal Line'][i]:
+      Buy.append(np.nan)
+      if flag != 0: 
+        Sell.append(signal['Close'][i])
+        flag = 0
+      else: 
+        Sell.append(np.nan)
+    else: 
+      Buy.append(np.nan)
+      Sell.append(np.nan)
+  
+  return(Buy, Sell)
+
+def processData(data, lb):
+    X, Y = [], []
+    for i in range(len(data) - lb - 1):
+        X.append(data[i: (i + lb), 0])
+        Y.append(data[(i + lb), 0])
+    return np.array(X), np.array(Y)
+    
+# Master PLS algorithm 
+TRAIN_PERCENT = 0.7
+
+MACD_PORTFOLIOS = []
+HOLD_PORTFOLIOS = []
+ALGO_PORTFOLIOS = []
+ALGO2_PORTFOLIOS = []
+MSE_ARR = []
+
+MSE_ARR_TRAIN = []
+PERCENT_DIFF_ARR = []
+ACCURACY_ARR = []
+DOWN_ACCUARCY_ARR = []
+
+
+for i in range(len(STOCKS)):
+    print(STOCKS[i])
+    df = yf.download(STOCKS[i], start='2010-06-28', interval='1d', end='2022-05-19', progress=False)[['Open', 'High', 'Low','Close', 'Volume']]
+    df = df.set_index(pd.DatetimeIndex(df.index.get_level_values('Date').values))
+    X_df = df.drop(['Close'], axis=1)
+    X = df.values[0:(len(df)-1)]
+    y = df['Close'].shift(-1).values[0:(len(df)-1)]
+    optimal_comps = optimise_pls_cv(X,y, 6, plot_components=False)
+    pls = PLSRegression(n_components=optimal_comps)
+    X_train, X_test = X[:int(X.shape[0] * TRAIN_PERCENT)], X[int(X.shape[0] * TRAIN_PERCENT):]
+    y_train, y_test = y[:int(y.shape[0] * TRAIN_PERCENT)],  y[int(X.shape[0] * TRAIN_PERCENT):]
+    pls_model = pls.fit(X_train, y_train)
+    preds_arr = pls_model.predict(X_test)
+    MSE_ARR.append(mean_squared_error(y_test, preds_arr))
+    MSE_ARR_TRAIN.append(mean_squared_error(y_train, pls_model.predict(X_train)))
+    df = df.iloc[int(X.shape[0] * TRAIN_PERCENT):(len(df)-1)]
+    
+    ShortEMA = df.Close.ewm(span=12, adjust=False).mean()
+    #Calculate the long term exponential moving average (EMA)
+    LongEMA = df.Close.ewm(span=26, adjust=False).mean()
+    #Calculate the MACD line
+    MACD = ShortEMA - LongEMA
+    signal = MACD.ewm(span=9, adjust=False).mean()
+    df['MACD'] = MACD
+    df['Signal Line'] = signal
+
+    #THIS CALCULATS PORTFOLIO VALUES FOR BASELINE MODELS 
+    #Create buy and sell column 
+    a = buy_sell(df)
+    Buys = a[0]
+    Sells = a[1]
+    Closes = df['Close']
+    df['Buy_Signal_Price'] = a[0]
+    df['Sell_Signal_Price'] = a[1]
+    profit = 0
+    index = 0 
+    end = 0
+
+    PORTFOLIO_DF = pd.DataFrame(np.zeros((len(Buys), 1)), columns = ['value'])
+    CAPITAL = 100000
+    SHARES = 0 
+    All_Cash = True
+    All_Shares = False 
+    CurPortVal = CAPITAL
+
+    #find first buy position
+    for i in range(0, len(Buys)): 
+        if np.isnan(Buys[i]) == False:
+           index = i
+           SHARES = CAPITAL / Buys[index]
+           PORTFOLIO_DF.iloc[:(index+1),:] = CAPITAL 
+           All_Shares = True
+           All_Cash = False 
+           break 
+
+        #find last sell position
+    for y in reversed(range(0, len(a[0]))):
+        if np.isnan(Sells[y]) == False:
+            end = y
+            break 
+
+    please = index 
+#start calculating profit 
+    for j in range(index, end+1): 
+        if (j > index) & (All_Shares == True): 
+           PORTFOLIO_DF.iloc[(j),:] = SHARES * Closes[j]
+           CurPortVal = SHARES * Closes[j]
+#        print(Closes[j])
+        elif (j > index) & (All_Shares == False):
+           PORTFOLIO_DF.iloc[(j),:] = CurPortVal
+        if np.isnan(Sells[j]) == False: #sell signal reached
+           profit = profit + (Sells[j] - Buys[please])
+           CAPITAL = CurPortVal
+           All_Shares = False
+        if np.isnan(Buys[j]) == False:
+           please = j
+           All_Shares = True 
+           SHARES = CAPITAL / Buys[please]
+
+#Show the data
+# print(profit)
+    PORTFOLIO_DF.iloc[end+1:,:] = CurPortVal
+    MACD_PORTFOLIOS.append(PORTFOLIO_DF)
+
+# PORTFOLIO_DF
+# Now calculate just holding portfolio 
+    HOLD_PORTFOLIO_DF = pd.DataFrame(np.zeros((len(Buys), 1)), columns = ['value'])
+    START_VALUE = 100000
+    HOLD_SHARES = START_VALUE / Closes[0]
+
+    for w in range(0, len(Buys)): 
+        HOLD_PORTFOLIO_DF.iloc[w,:] = HOLD_SHARES * Closes[w]
+    HOLD_PORTFOLIOS.append(HOLD_PORTFOLIO_DF)
+    
+    #predictions portfolios 
+    preds = pd.DataFrame(preds_arr,columns=['prediction_tmrow'])
+    preds = preds.set_index(df.index)
+    preds = preds.assign(five_day_average=df['Close'].rolling(5).mean().shift(1))
+    preds = preds.assign(actual=df['Close'])
+    preds = preds.assign(actual_price_tmrow=df['Close'].shift(-1).values[0:(len(df))])
+    
+    
+    ALGO_Capital = 100000
+    ALGO_CurPorVal = ALGO_Capital
+    ALGO_PORTFOLIO_DF = pd.DataFrame(np.zeros((len(Buys), 1)), columns = ['value']) + ALGO_CurPorVal
+    ALGO_STOCK = 0
+    ALGO_Shares = False 
+
+
+    for b in range(5, (len(Buys))):
+        tmrow_pred = preds.iloc[b,0]
+        five_avg = preds.iloc[b,1]
+        if (b > 5) & (ALGO_Shares == True): 
+           ALGO_CurPorVal = ALGO_STOCK * preds.iloc[b,2]
+           ALGO_PORTFOLIO_DF.iloc[(b),:] = ALGO_CurPorVal
+        elif (b > 5) & (ALGO_Shares == False):
+           ALGO_PORTFOLIO_DF.iloc[(b),:] = ALGO_CurPorVal
+        if (tmrow_pred > five_avg) & (ALGO_Shares == False) : 
+            ALGO_STOCK = ALGO_CurPorVal / preds.iloc[b,2]
+            ALGO_Shares = True
+        elif (tmrow_pred < five_avg) & (ALGO_Shares == False) : 
+            ALGO_STOCK = ALGO_CurPorVal / preds.iloc[b,2]
+            ALGO_Shares = True
+        elif (tmrow_pred < five_avg) & (ALGO_Shares == True): #Sell signal reached  
+            ALGO_Shares = False 
+            ALGO_CurPorVal = ALGO_STOCK * preds.iloc[b,2]
+            ALGO_STOCK = 0 
+            
+    ALGO_PORTFOLIOS.append(ALGO_PORTFOLIO_DF)
+    
+    # Last simple algo strat 2 
+    ALGO2_Capital = 100000
+    ALGO2_CurPorVal = ALGO2_Capital
+    ALGO2_PORTFOLIO_DF = pd.DataFrame(np.zeros((len(Buys), 1)), columns = ['value']) + ALGO2_CurPorVal
+    ALGO2_STOCK = 0
+    ALGO2_Shares = False 
+    
+    for z in range(0, (len(df))):
+        today_price = preds.iloc[z,2]
+        tmrow_prediction = preds.iloc[z,0]
+#         print(ALGO2_STOCK)
+#         print(today_price)
+        #first set current portfolio value 
+        if (ALGO2_Shares == False):
+            ALGO2_PORTFOLIO_DF.iloc[(z),:] = ALGO2_CurPorVal
+        elif (ALGO2_Shares == True):
+            ALGO2_PORTFOLIO_DF.iloc[(z),:] = ALGO2_STOCK * today_price
+        if (tmrow_prediction > today_price) & (ALGO2_Shares == False): #buy in 
+            ALGO2_Shares = True
+            ALGO2_STOCK = ALGO2_CurPorVal / today_price 
+        elif (tmrow_prediction < today_price) & (ALGO2_Shares == True): #sell
+            ALGO2_Shares = False
+            ALGO2_CurPorVal = ALGO2_STOCK * today_price
+            ALGO2_STOCK = 0
+            
+    ALGO2_PORTFOLIOS.append(ALGO2_PORTFOLIO_DF)
+            
+    PERCENT_DIFF_ARR.append((ALGO2_PORTFOLIO_DF.iloc[(len(Buys)-1)]['value'] - HOLD_PORTFOLIO_DF.iloc[(len(Buys)-1)]['value']) / HOLD_PORTFOLIO_DF.iloc[(len(Buys)-1)]['value'] * 100)
+    
+    preds['up_down_actual'] = np.where((preds['actual_price_tmrow'] >= preds['actual']) , 1, 0)
+    preds['up_down_preds'] = np.where((preds['prediction_tmrow'] >= preds['actual'] ), 1, 0)
+
+    preds_analysis = preds.iloc[0:(len(Buys)-1), 4:6]
+    preds_analysis['correct_pred'] = np.where( ((preds_analysis['up_down_actual'] == 1) & (preds_analysis['up_down_preds'] == 1)) | ((preds_analysis['up_down_actual'] == 0) & (preds_analysis['up_down_preds'] == 0)), 1, 0 )
+    preds_analysis['correct_down_pred'] = np.where( ((preds_analysis['up_down_actual'] == 0) & (preds_analysis['up_down_preds'] == 0))  , 1, 0 )
+    preds_analysis['down_actual'] = np.where( (preds_analysis['up_down_actual'] == 0) , 1, 0 )
+
+    ACCURACY_ARR.append(np.mean(preds_analysis['correct_pred']))
+
+    # total_down_preds
+    DOWN_ACCUARCY_ARR.append(preds_analysis['correct_down_pred'].sum()  /  preds_analysis['down_actual'].sum())
+
+
+    
+    plt.figure(figsize = (12.2, 6.5))
+    plt.title('PORTFOLIO VALUE USING PLS ALGORITHM')
+    # plt.scatter(df.index, PORTFOLIO_DF['value'], color = 'black', label = 'bruh',  alpha = .2)
+    plt.plot(PORTFOLIO_DF['value'], label = 'MACD', color = 'red' , alpha = .35)
+    plt.plot(HOLD_PORTFOLIO_DF['value'], label = 'HOLD', color = 'green' , alpha = .35)
+    plt.plot(ALGO_PORTFOLIO_DF['value'], label = 'PLS_SIMPLE_STRAT', color = 'blue' , alpha = .35)
+    plt.plot(ALGO2_PORTFOLIO_DF['value'], label = 'PLS_STRAT_2', color = 'purple' , alpha = .2)
+    plt.ylabel("Portfolio Value ($)")
+    plt.xlabel("Days from 2018-10-23")
+    
+#     plt.plot(Hill_DF['value'], label = 'HILL', color = 'orange' , alpha = .35)
+    plt.legend(loc = 'upper left')
+    
+preds['up_down_actual'] = np.where((preds['actual_price_tmrow'] >= preds['actual']) , 1, 0)
+preds['up_down_preds'] = np.where((preds['prediction_tmrow'] >= preds['actual'] ), 1, 0)
+
+preds_analysis = preds.iloc[0:(len(Buys)-1), 4:6]
+preds_analysis['correct_pred'] = np.where( ((preds_analysis['up_down_actual'] == 1) & (preds_analysis['up_down_preds'] == 1)) | ((preds_analysis['up_down_actual'] == 0) & (preds_analysis['up_down_preds'] == 0)), 1, 0 )
+preds_analysis['correct_down_pred'] = np.where( ((preds_analysis['up_down_actual'] == 0) & (preds_analysis['up_down_preds'] == 0))  , 1, 0 )
+preds_analysis['down_actual'] = np.where( (preds_analysis['up_down_actual'] == 0) , 1, 0 )
+
+np.mean(preds_analysis['correct_pred'])
+
+# total_down_preds
+preds_analysis['correct_down_pred'].sum()  /  preds_analysis['down_actual'].sum()
+
+
+plt.figure(figsize = (12.2, 6.5))
+plt.title('PLS Algorithm Profit')
+plt.plot(BETAS, PERCENT_DIFF_ARR)
+plt.scatter(BETAS, PERCENT_DIFF_ARR)
+plt.ylabel("Buy and Hold Strategy Outperformance (Percentage)")
+plt.xlabel("Stock 5-Year Monthly BETA")
+
+# plt.figure(figsize = (12.2, 6.5))
+# plt.title('PLS Algorithm Profit')
+# plt.plot(BETAS, DOWN_ACCUARCY_ARR)
+# plt.scatter(BETAS, DOWN_ACCUARCY_ARR)
+# plt.ylabel("Recall Percentage")
+# plt.xlabel("Stock 5-Year Monthly BETA")
+DOWN_ACCUARCY_ARR
 
