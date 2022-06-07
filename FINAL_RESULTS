@@ -1,1 +1,405 @@
+import matplotlib.pyplot as plt
+import numpy as np
+STOCKS = ['PG', 'WMT', 'KO', 'TM', 'JNJ', 'BRK-B', 'SPY', 'GOOG', 'AMZN' ,'CVX', 'WFC', 'AAPL', 'NVDA', 'BBY', 'TSLA']
+BETAS = [0.44, 0.50,  0.58, 0.64, 0.66,0.87, 1.00, 1.06,  1.12, 1.14, 1.14, 1.19, 1.42, 1.52, 2.08]
 
+# RESULTS FROM PLS ALGORITHM 
+
+
+
+
+GRU_DOWN_ACC = [0.955,
+ 0.5977011494252874,
+ 0.6764705882352942,
+ 0.5827505827505828,
+ 0.42289719626168226,
+ 0.8554216867469879,
+ 0.8163265306122449,
+ 0.7437810945273632,
+ 0.6627634660421545,
+ 0.42890995260663506,
+ 0.3242009132420091,
+ 0.750599520383693,
+ 0.6414634146341464,
+ 0.7139364303178484,
+ 0.7578692493946732]
+
+PLS_DOWN_ACC = [0.7930174563591023,
+ 0.7637614678899083,
+ 0.8312958435207825,
+ 0.6946386946386947,
+ 0.4755244755244755,
+ 0.354916067146283,
+ 0.4746192893401015,
+ 0.45905707196029777,
+ 0.21678321678321677,
+ 0.4481132075471698,
+ 0.3795454545454545,
+ 0.3157894736842105,
+ 0.4563106796116505,
+ 0.5206812652068127,
+ 0.6803874092009685]
+
+LMST_DOWN_ACC = [0.98,
+ 0.8988505747126436,
+ 0.6348039215686274,
+ 0.5687645687645687,
+ 0.34579439252336447,
+ 0.7686746987951807,
+ 0.8188775510204082,
+ 0.7810945273631841,
+ 0.6042154566744731,
+ 0.44786729857819907,
+ 0.1232876712328767,
+ 0.7362110311750599,
+ 0.7536585365853659,
+ 0.7286063569682152,
+ 0.5230024213075061]
+
+
+data_down_acc =list(zip(GRU_DOWN_ACC, LMST_DOWN_ACC, PLS_DOWN_ACC))
+# data_down_acc = list(zip(data_d, PLS_DOWN_ACC))
+
+
+PLS_PROFIT = [-20.782042082188433,
+ -11.256018492329916,
+ 18.947994145560234,
+ 16.54692288057053,
+ -12.685836826333027,
+ -8.184999782525098,
+ 20.85254766866904,
+ 0.7853805914783383,
+ 185.42056922312892,
+ 35.17047553484364,
+ 141.72940506141853,
+ 30.353969457039387,
+ 148.72262988633264,
+ -14.504692796696803,
+ -88.15774326073232]
+
+# PLS_MSE
+
+
+
+PLS_ACC = [0.4610244988864143,
+ 0.5189309576837416,
+ 0.4922048997772829,
+ 0.5233853006681515,
+ 0.5077951002227171,
+ 0.4955456570155902,
+ 0.5200445434298441,
+ 0.512249443207127,
+ 0.5334075723830735,
+ 0.5033407572383074,
+ 0.5356347438752784,
+ 0.5300668151447662,
+ 0.5523385300668151,
+ 0.49888641425389757,
+ 0.47268673355629875]
+
+# RESULTs FROM GRU ALGORITHM
+
+GRU_PROFIT = [-20.69128784725834,
+ -14.26863259894163,
+ -1.1026706224228096,
+ -24.99354373143677,
+ -11.52976852694693,
+ -22.484222918518217,
+ -16.32244600156416,
+ 16.4925831211951,
+ 8.650937573318767,
+ 8.597036652712987,
+ 7.711110048377883,
+ -25.22843488551895,
+ -54.2141293259482,
+ 24.33350671458542,
+ -88.80049507272429]
+
+GRU_ACC = [0.45363128491620114,
+ 0.5083798882681564,
+ 0.4983240223463687,
+ 0.5005586592178771,
+ 0.5039106145251396,
+ 0.48379888268156424,
+ 0.4759776536312849,
+ 0.488268156424581,
+ 0.5039106145251396,
+ 0.5307262569832403,
+ 0.5184357541899441,
+ 0.5016759776536313,
+ 0.49385474860335193,
+ 0.5027932960893855,
+ 0.4608501118568233]
+
+
+
+
+GRU_MSE = [0.0004835822,
+ 0.0004100102,
+ 0.0004320808,
+ 0.00021663947,
+ 0.00033490654,
+ 0.00019502743,
+ 0.0046054902,
+ 0.0022221096,
+ 0.007521331,
+ 0.0005878095,
+ 0.000719915,
+ 0.0008726368,
+ 0.011907639,
+ 0.0010317864,
+ 0.04801411]
+
+
+#ALGO 3 
+
+# LMST_MSE = 
+
+LMST_PROFIT = [-26.0077784880126,
+ -7.794266500613915,
+ -1.2236160111497023,
+ -19.440094435224463,
+ -14.2790597887477,
+ -24.020069268658613,
+ -21.137380125073257,
+ 10.309279985606109,
+ 4.370735476343851,
+ -6.404108987197903,
+ -26.629939809222957,
+ -25.515640489289044,
+ -54.747839703852506,
+ 11.403802032151242,
+ -84.47700119283947]
+
+LMST_ACC = [0.45139664804469276,
+ 0.511731843575419,
+ 0.4983240223463687,
+ 0.506145251396648,
+ 0.4994413407821229,
+ 0.488268156424581,
+ 0.4782122905027933,
+ 0.4770949720670391,
+ 0.5005586592178771,
+ 0.524022346368715,
+ 0.506145251396648,
+ 0.4960893854748603,
+ 0.48379888268156424,
+ 0.5039106145251396,
+ 0.5]
+
+
+data_down_profit = list(zip(LMST_PROFIT, GRU_PROFIT, PLS_PROFIT))
+data_acc = list(zip(LMST_ACC, GRU_ACC, PLS_ACC))
+
+plt.figure(figsize = (12.2, 6.5))
+plt.title('Prediction Strategy vs. Buy and Hold strategy')
+# plt.plot(BETAS, PLS_PROFIT, label = 'PLS')
+# plt.plot(BETAS, GRU_PROFIT, label = 'GRU')
+# plt.plot(BETAS, LMST_PROFIT, label = 'LMST')
+# plt.scatter(BETAS, PLS_PROFIT)
+# plt.scatter(BETAS, GRU_PROFIT)
+# plt.scatter(BETAS, LMST_PROFIT)
+# plt.ylabel("Buy and Hold Strategy Outperformance (Percentage)")
+# plt.xlabel("Stock 5-Year Monthly BETA")
+# plt.legend(loc = 'upper left')
+N = 15
+ind = np.arange(N) 
+width = 0.25
+  
+xvals = LMST_ACC
+bar1 = plt.bar(ind, xvals, width, color = 'r')
+  
+yvals = GRU_ACC
+bar2 = plt.bar(ind+width, yvals, width, color='g')
+  
+zvals = PLS_ACC
+bar3 = plt.bar(ind+width*2, zvals, width, color = 'b')
+  
+plt.xlabel("STOCK 5-Year Monthly Beta")
+plt.ylabel('Accuracy')
+plt.title("Accuracy vs. Beta")
+  
+plt.xticks(ind+width,[str(x) for x in BETAS])
+plt.legend( (bar1, bar2, bar3), ('LMST', 'GRU', 'PLS') )
+plt.show()
+
+fig = plt.figure(figsize = (12.2, 6.5))
+# plt.title('Beta vs. Specificity')
+# # plt.plot(BETAS, PLS_ACC, label = 'PLS')
+# # plt.plot(BETAS, GRU_ACC, label = 'GRU')
+# # plt.plot(BETAS, LMST_ACC, label = 'LMST')
+# ax = fig.add_axes([0, 0, 1, 1])
+# ax.bar(BETAS, PLS_ACC)
+# ax.bar(BETAS, GRU_ACC)
+# ax.bar(BETAS, LMST_ACC)
+# plt.ylabel("Accuracy")
+# plt.xlabel("Stock 5-Year Monthly BETA")
+# plt.legend(loc = 'upper left')
+# X = np.arange(3)
+# fig = plt.figure()
+# ax = fig.add_axes([0,0,1,1])
+# LMST_PROFIT, GRU_PROFIT, PLS_PROFIT
+# x_axis = np.arange(len(STOCKS))
+# plt.bar(x_axis - 0.2, LMST_PROFIT, width=0.4, label = 'LMST_PROFIT')
+# plt.bar(x_axis + 0.2, GRU_PROFIT, width=0.4, label = 'GRU_PROFIT')
+# plt.bar(x_axis + 0.6, GRU_PROFIT, width=0.4, label = 'GRU_PROFIT')
+
+# plt.bar(X + 0.00, data_down_profit[0], color = 'orange', width = 0.25)
+# plt.bar(X + 0.25, data_down_profit[1], color = 'green', width = 0.25)
+# plt.bar(X + 0.50, data_down_profit[2], color = 'blue', width = 0.25)
+# plt.bar(X + 0.75, data_down_profit[3], color = 'blue', width = 0.25)
+
+
+# plt.bar(X + 0.25, data[2], color = 'red', width = 0.25)
+
+N = 15
+ind = np.arange(N) 
+width = 0.25
+  
+xvals = LMST_PROFIT
+bar1 = plt.bar(ind, xvals, width, color = 'r')
+  
+yvals = GRU_PROFIT
+bar2 = plt.bar(ind+width, yvals, width, color='g')
+  
+zvals = PLS_PROFIT
+bar3 = plt.bar(ind+width*2, zvals, width, color = 'b')
+  
+plt.xlabel("STOCK 5-Year Monthly Beta")
+plt.ylabel('OUTPERFORMANCE (Percentage)')
+plt.title("Profit Percentage By Increasing Beta")
+  
+plt.xticks(ind+width,[str(x) for x in BETAS])
+plt.legend( (bar1, bar2, bar3), ('LMST', 'GRU', 'PLS') )
+plt.show()
+
+plt.figure(figsize = (12.2, 6.5))
+plt.title('Beta vs. Specificity')
+# plt.plot(BETAS, PLS_DOWN_ACC, label = 'PLS')
+# plt.plot(BETAS, GRU_DOWN_ACC, label = 'GRU')
+# plt.plot(BETAS, LMST_DOWN_ACC, label = 'LMST')
+# plt.scatter(BETAS, PLS_DOWN_ACC)
+# plt.scatter(BETAS, GRU_DOWN_ACC)
+# plt.scatter(BETAS, )
+# plt.ylabel("Specificity")
+# plt.xlabel("Stock 5-Year Monthly BETA")
+# plt.legend(loc = 'upper left')
+N = 15
+ind = np.arange(N) 
+width = 0.25
+  
+xvals = LMST_DOWN_ACC
+bar1 = plt.bar(ind, xvals, width, color = 'r')
+  
+yvals = GRU_DOWN_ACC
+bar2 = plt.bar(ind+width, yvals, width, color='g')
+  
+zvals = PLS_DOWN_ACC
+bar3 = plt.bar(ind+width*2, zvals, width, color = 'b')
+  
+plt.xlabel("STOCK 5-Year Monthly Beta")
+plt.ylabel('Specificity')
+# plt.title("Profit Percentage By Increasing Beta")
+  
+plt.xticks(ind+width,[str(x) for x in BETAS])
+plt.legend( (bar1, bar2, bar3), ('LMST', 'GRU', 'PLS') )
+plt.show()
+
+MSE_ON_TRAIN_GRU = [4.889931e-05,
+ 6.730258e-05,
+ 0.00015671103,
+ 0.00011992757,
+ 0.00028465895,
+ 0.00047072396,
+ 0.00017359329,
+ 6.196468e-05,
+ 0.00042320648,
+ 0.00020953795,
+ 0.00047341408,
+ 9.6076685e-05,
+ 2.4516396e-05,
+ 0.002907683,
+ 0.00029409002]
+
+MSE_ON_TEST_GRU = [0.0037765342,
+ 0.00033428732,
+ 0.0004411631,
+ 0.0002129697,
+ 0.0003476437,
+ 0.0001890773,
+ 0.0022726343,
+ 0.00094488484,
+ 0.04071238,
+ 0.00047042468,
+ 0.0007217318,
+ 0.0014105163,
+ 0.010131626,
+ 0.005116402,
+ 0.033998575]
+
+MSE_ON_TRAIN_LMST = [5.4608696e-05,
+ 7.210917e-05,
+ 0.00017959978,
+ 0.000149142,
+ 0.000109263616,
+ 0.0004612699,
+ 0.00048772927,
+ 0.000111468784,
+ 3.824469e-05,
+ 0.00016425719,
+ 0.0009988331,
+ 7.426577e-05,
+ 4.664596e-05,
+ 5.660214e-05,
+ 1.2427037e-06]
+
+MSE_ON_TEST_LMST=[0.0058421185,
+ 0.0020051813,
+ 0.0005055968,
+ 0.00024983502,
+ 0.00029189326,
+ 0.00055922364,
+ 0.003003211,
+ 0.0039357184,
+ 0.008169658,
+ 0.00041418217,
+ 0.0014482739,
+ 0.002249174,
+ 0.007122507,
+ 0.0011278188,
+ 0.0004102591]
+
+MSE_ON_TRAIN = [0.49895727585568383,
+ 0.686798430191658,
+ 0.12665310465281435,
+ 1.8410983901642521,
+ 0.8423518345184655,
+ 1.9720434919542251,
+ 2.556056417609562,
+ 82.56569531593382,
+ 0.3542140853345168,
+ 1.8433611463669008,
+ 0.36797422576860395,
+ 0.16228959155681913,
+ 0.3326845909634273,
+ 0.8119991931873867,
+ 1.3350509502610317]
+
+MSE_ON_TEST = [2.938318841185049,
+ 3.302272733981547,
+ 0.5523459119658766,
+ 4.86051821192761,
+ 3.8525411962533775,
+ 10.260949728978167,
+ 19.778274395087372,
+ 1158.8534157776087,
+ 7.926030356229027,
+ 5.179468822185482,
+ 0.863148661138911,
+ 4.753776806609493,
+ 24.360876821005053,
+ 5.193539865149795,
+ 491.35686217938405]
+
+
+sum(MSE_ON_TEST) / len(MSE_ON_TEST)
