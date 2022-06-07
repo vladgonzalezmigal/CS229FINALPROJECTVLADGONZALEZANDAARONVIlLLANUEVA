@@ -1,0 +1,749 @@
+import numpy as np
+import yfinance as yf
+import pandas as pd
+from keras.models import Sequential
+from keras.layers import Dense, GRU, LSTM
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_squared_error, r2_score
+
+import matplotlib.pyplot as plt
+
+data = yf.download('WMT',start='2010-06-01', interval='1d',  end='2021-01-07',progress=False)[['Close']]
+data.head()
+  
+data.plot(figsize=(10,10))
+
+def buy_sell(signal):
+  Buy = []
+  Sell = []
+  flag = -1
+
+  for i in range(0, len(signal)): 
+    if signal['MACD'][i] > signal['Signal Line'][i]:
+      Sell.append(np.nan)
+      if flag != 1: 
+        Buy.append(signal['Close'][i])
+        flag = 1
+      else: 
+        Buy.append(np.nan)
+    elif signal['MACD'][i] < signal['Signal Line'][i]:
+      Buy.append(np.nan)
+      if flag != 0: 
+        Sell.append(signal['Close'][i])
+        flag = 0
+      else: 
+        Sell.append(np.nan)
+    else: 
+      Buy.append(np.nan)
+      Sell.append(np.nan)
+  
+  return(Buy, Sell)
+
+def processData(data, lb):
+    X, Y = [], []
+    for i in range(len(data) - lb - 1):
+        X.append(data[i: (i + lb), 0])
+        Y.append(data[(i + lb), 0])
+    return np.array(X), np.array(Y)
+    
+    cl = data.Close.astype('float32')
+
+train = cl[0: int(len(cl))]
+scale = MinMaxScaler()
+scale.fit(train.values.reshape(-1, 1))
+cl = (cl.values.reshape(-1, 1))
+
+cl.shape
+
+
+
+lb = 10
+X, y = processData(cl, lb)
+X_train, X_test = X[:int(X.shape[0] * 0.80)], X[int(X.shape[0] * 0.80): int(X.shape[0] * 0.90)]
+y_train, y_test = y[:int(y.shape[0] * 0.80)], y[int(y.shape[0] * 0.80): int(y.shape[0] * 0.90)]
+
+x_actual_test = X[int(X.shape[0] * 0.90):]
+y_actual_test = y[int(y.shape[0] * 0.90):]
+
+
+model = Sequential()
+model.add(GRU(256,input_shape=(lb,1)))
+model.add(Dense(1))
+model.compile(optimizer='adam',loss='mse')
+ 
+#Reshape data for (Sample,Timestep,Features) 
+X_train = X_train.reshape((X_train.shape[0],X_train.shape[1],1))
+X_test = X_test.reshape((X_test.shape[0],X_test.shape[1],1))
+x_actual_test = x_actual_test.reshape((x_actual_test.shape[0], x_actual_test.shape[1], 1))
+
+#Fit model with history to check for overfitting
+history = model.fit(X_train,y_train,epochs=300,validation_data=(X_test,y_test),shuffle=False, batch_size= 32)
+ 
+model.summary() 
+
+Xt = model.predict(X_train)
+plt.plot(scale.inverse_transform(y_train.reshape(-1, 1)), label="Actual")
+plt.plot(scale.inverse_transform(Xt), label="Predicted")
+plt.legend()
+plt.title("Train Dataset")
+plt.figure(figsize=(12, 8))
+
+plt.figure(figsize = (12.2, 6.5))
+Xt = model.predict(X_test)
+np.savetxt("predicted_price.csv", scale.inverse_transform(Xt))
+plt.plot(scale.inverse_transform(y_test.reshape(-1, 1)), label="Actual")
+plt.plot(scale.inverse_transform(Xt), label="Predicted")
+plt.legend()
+plt.title("Validation Dataset")
+
+plt.figure(figsize = (12.2, 6.5))
+Xt = model.predict(x_actual_test)
+plt.plot(scale.inverse_transform(y_actual_test.reshape(-1, 1)), label="Actual")
+plt.plot(scale.inverse_transform(Xt), label="Predicted")
+plt.legend()
+plt.title("Test Dataset")
+
+# master code 
+TRAIN_PERCENT = 0.7
+BETAS = [0.44, 0.50,  0.58, 0.64, 0.66,0.87, 1.00, 1.06,  1.12, 1.14, 1.14, 1.19, 1.42, 1.52, 2.08]
+STOCKS = ['PG', 'WMT', 'KO', 'TM', 'JNJ', 'BRK-B', 'SPY', 'GOOG', 'AMZN' ,'CVX', 'WFC', 'AAPL', 'NVDA', 'BBY', 'TSLA']
+MACD_PORTFOLIOS_2 = []
+HOLD_PORTFOLIOS_2 = []
+ALGO_PORTFOLIOS_2 = []
+ALGO2_PORTFOLIOS_2 = []
+MSE_ARR_2 = []
+PERCENT_DIFF_ARR_2 = []
+ACCURACY_ARR_2 = []
+DOWN_ACCUARCY_ARR_2 = []
+MSE_ON_TRAIN = []
+
+
+for i in range(0,len(STOCKS)):
+    df = yf.download(STOCKS[i], start='2010-06-28', interval='1d', end='2022-05-19',progress=False)[['Close']]
+    cl = df.Close.astype('float32')
+    train = cl[0: int(len(cl))]
+    scale = MinMaxScaler()
+    scale.fit(train.values.reshape(-1, 1))
+    cl = scale.transform(cl.values.reshape(-1, 1))
+
+    lb = 10
+    X, y = processData(cl, lb)
+
+    X_train, X_test = X[:int(X.shape[0] * TRAIN_PERCENT)], X[int(X.shape[0] * TRAIN_PERCENT):]
+    y_train, y_test = y[:int(y.shape[0] * TRAIN_PERCENT)],  y[int(X.shape[0] * TRAIN_PERCENT):]
+
+    X_test.shape
+
+    model = Sequential()
+    model.add(GRU(256,input_shape=(lb,1)))
+    model.add(Dense(1))
+    model.compile(optimizer='adam',loss='mse')
+
+    #Reshape data for (Sample,Timestep,Features) 
+    X_train = X_train.reshape((X_train.shape[0],X_train.shape[1],1))
+    X_test = X_test.reshape((X_test.shape[0],X_test.shape[1],1))
+    # x_actual_test = x_actual_test.reshape((x_actual_test.shape[0], x_actual_test.shape[1], 1))
+
+    #Fit model with history to check for overfitting
+
+    # for i in range(1,300):
+    history = model.fit(X_train,y_train,epochs=150,shuffle=False, batch_size= 32)
+    #     EPOCHS_MSE_ON_TEST.append(mean_squared_error(y_test, model.predict(X_test)))
+
+    preds_arr = model.predict(X_test)
+    MSE_ARR_2.append(mean_squared_error(y_test, preds_arr))
+    MSE_ON_TRAIN.append(mean_squared_error(y_train, model.predict(X_train)))
+
+    # df = yf.download(STOCKS[0], start='2010-06-28', interval='1d', end='2022-05-19',progress=False)[['Close']]
+
+    df = df.tail(y_test.shape[0])
+
+
+    # print(df)
+    ShortEMA = df.Close.ewm(span=12, adjust=False).mean()
+    #Calculate the long term exponential moving average (EMA)
+    LongEMA = df.Close.ewm(span=26, adjust=False).mean()
+    #Calculate the MACD line
+    MACD = ShortEMA - LongEMA
+    signal = MACD.ewm(span=9, adjust=False).mean()
+    df['MACD'] = MACD
+    df['Signal Line'] = signal
+
+    #THIS CALCULATS PORTFOLIO VALUES FOR BASELINE MODELS 
+    # #Create buy and sell column 
+    a = buy_sell(df)
+    Buys = a[0]
+    Sells = a[1]
+    Closes = df['Close']
+    df['Buy_Signal_Price'] = a[0]
+    df['Sell_Signal_Price'] = a[1]
+    profit = 0
+    index = 0 
+    end = 0
+
+    PORTFOLIO_DF = pd.DataFrame(np.zeros((len(Buys), 1)), columns = ['value'])
+    CAPITAL = 100000
+    SHARES = 0 
+    All_Cash = True
+    All_Shares = False 
+    CurPortVal = CAPITAL
+
+    #find first buy position
+    for i in range(0, len(Buys)): 
+        if np.isnan(Buys[i]) == False:
+           index = i
+           SHARES = CAPITAL / Buys[index]
+           PORTFOLIO_DF.iloc[:(index+1),:] = CAPITAL 
+           All_Shares = True
+           All_Cash = False 
+           break 
+
+        #find last sell position
+    for y in reversed(range(0, len(a[0]))):
+        if np.isnan(Sells[y]) == False:
+            end = y
+            break 
+
+    please = index 
+    #start calculating profit 
+    for j in range(index, end+1): 
+        if (j > index) & (All_Shares == True): 
+           PORTFOLIO_DF.iloc[(j),:] = SHARES * Closes[j]
+           CurPortVal = SHARES * Closes[j]
+    #        print(Closes[j])
+        elif (j > index) & (All_Shares == False):
+           PORTFOLIO_DF.iloc[(j),:] = CurPortVal
+        if np.isnan(Sells[j]) == False: #sell signal reached
+           profit = profit + (Sells[j] - Buys[please])
+           CAPITAL = CurPortVal
+           All_Shares = False
+        if np.isnan(Buys[j]) == False:
+           please = j
+           All_Shares = True 
+           SHARES = CAPITAL / Buys[please]
+
+    # Show the data
+    print(profit)
+    PORTFOLIO_DF.iloc[end+1:,:] = CurPortVal
+    # MACD_PORTFOLIOS_2.append(PORTFOLIO_DF)
+
+    # PORTFOLIO_DF
+    # Now calculate just holding portfolio 
+    HOLD_PORTFOLIO_DF = pd.DataFrame(np.zeros((len(Buys), 1)), columns = ['value'])
+    START_VALUE = 100000
+    HOLD_SHARES = START_VALUE / Closes[0]
+
+    for w in range(0, len(Buys)): 
+        HOLD_PORTFOLIO_DF.iloc[w,:] = HOLD_SHARES * Closes[w]
+    HOLD_PORTFOLIOS_2.append(HOLD_PORTFOLIO_DF)
+
+    #predictions portfolios 
+
+    preds = pd.DataFrame(scale.inverse_transform(preds_arr.reshape(-1, 1)),columns=['prediction_tmrow'])
+    preds = preds.set_index(df.index)
+    preds = preds.assign(five_day_average=df['Close'].rolling(5).mean().shift(1))
+    preds = preds.assign(actual=df['Close'])
+    preds = preds.assign(actual_price_tmrow=df['Close'].shift(-1).values[0:(len(df))])
+
+
+    ALGO_Capital = 100000
+    ALGO_CurPorVal = ALGO_Capital
+    ALGO_PORTFOLIO_DF = pd.DataFrame(np.zeros((len(Buys), 1)), columns = ['value']) + ALGO_CurPorVal
+    ALGO_STOCK = 0
+    ALGO_Shares = False 
+
+
+    for b in range(5, (len(Buys))):
+        tmrow_pred = preds.iloc[b,0]
+        five_avg = preds.iloc[b,1]
+        if (b > 5) & (ALGO_Shares == True): 
+           ALGO_CurPorVal = ALGO_STOCK * preds.iloc[b,2]
+           ALGO_PORTFOLIO_DF.iloc[(b),:] = ALGO_CurPorVal
+        elif (b > 5) & (ALGO_Shares == False):
+           ALGO_PORTFOLIO_DF.iloc[(b),:] = ALGO_CurPorVal
+        if (tmrow_pred > five_avg) & (ALGO_Shares == False) : 
+            ALGO_STOCK = ALGO_CurPorVal / preds.iloc[b,2]
+            ALGO_Shares = True
+        elif (tmrow_pred < five_avg) & (ALGO_Shares == False) : 
+            ALGO_STOCK = ALGO_CurPorVal / preds.iloc[b,2]
+            ALGO_Shares = True
+        elif (tmrow_pred < five_avg) & (ALGO_Shares == True): #Sell signal reached  
+            ALGO_Shares = False 
+            ALGO_CurPorVal = ALGO_STOCK * preds.iloc[b,2]
+            ALGO_STOCK = 0 
+
+    # ALGO_PORTFOLIOS_2.append(ALGO_PORTFOLIO_DF)
+
+    # Last simple algo strat 2 
+    ALGO2_Capital = 100000
+    ALGO2_CurPorVal = ALGO2_Capital
+    ALGO2_PORTFOLIO_DF = pd.DataFrame(np.zeros((len(Buys), 1)), columns = ['value']) + ALGO2_CurPorVal
+    ALGO2_STOCK = 0
+    ALGO2_Shares = False 
+
+    for z in range(0, (len(df))):
+        today_price = preds.iloc[z,2]
+        tmrow_prediction = preds.iloc[z,0]
+    #         print(ALGO2_STOCK)
+    #         print(today_price)
+        #first set current portfolio value 
+        if (ALGO2_Shares == False):
+            ALGO2_PORTFOLIO_DF.iloc[(z),:] = ALGO2_CurPorVal
+        elif (ALGO2_Shares == True):
+            ALGO2_PORTFOLIO_DF.iloc[(z),:] = ALGO2_STOCK * today_price
+        if (tmrow_prediction > today_price) & (ALGO2_Shares == False): #buy in 
+            ALGO2_Shares = True
+            ALGO2_STOCK = ALGO2_CurPorVal / today_price 
+        elif (tmrow_prediction < today_price) & (ALGO2_Shares == True): #sell
+            ALGO2_Shares = False
+            ALGO2_CurPorVal = ALGO2_STOCK * today_price
+            ALGO2_STOCK = 0
+
+    
+    ALGO2_PORTFOLIOS_2.append(ALGO2_PORTFOLIO_DF)
+    PERCENT_DIFF_ARR_2.append((ALGO2_PORTFOLIO_DF.iloc[(len(Buys)-1)]['value'] - HOLD_PORTFOLIO_DF.iloc[(len(Buys)-1)]['value']) / HOLD_PORTFOLIO_DF.iloc[(len(Buys)-1)]['value'] * 100)
+
+    preds['up_down_actual'] = np.where((preds['actual_price_tmrow'] >= preds['actual']) , 1, 0)
+    preds['up_down_preds'] = np.where((preds['prediction_tmrow'] >= preds['actual'] ), 1, 0)
+
+    preds_analysis = preds.iloc[0:(len(Buys)-1), 4:6]
+    preds_analysis['correct_pred'] = np.where( ((preds_analysis['up_down_actual'] == 1) & (preds_analysis['up_down_preds'] == 1)) | ((preds_analysis['up_down_actual'] == 0) & (preds_analysis['up_down_preds'] == 0)), 1, 0 )
+    preds_analysis['correct_down_pred'] = np.where( ((preds_analysis['up_down_actual'] == 0) & (preds_analysis['up_down_preds'] == 0))  , 1, 0 )
+    preds_analysis['down_actual'] = np.where( (preds_analysis['up_down_actual'] == 0) , 1, 0 )
+
+    ACCURACY_ARR_2.append(np.mean(preds_analysis['correct_pred']))
+
+    # total_down_preds
+    DOWN_ACCUARCY_ARR_2.append(preds_analysis['correct_down_pred'].sum()  /  preds_analysis['down_actual'].sum())
+
+
+
+    plt.figure(figsize = (12.2, 6.5))
+    plt.title('PORTFOLIO VALUE ')
+    # plt.scatter(df.index, PORTFOLIO_DF['value'], color = 'black', label = 'bruh',  alpha = .2)
+    plt.plot(PORTFOLIO_DF['value'], label = 'MACD', color = 'red' , alpha = .35)
+    plt.plot(HOLD_PORTFOLIO_DF['value'], label = 'HOLD', color = 'green' , alpha = .35)
+    plt.plot(ALGO_PORTFOLIO_DF['value'], label = 'GRU_ADVANCED_STRAT', color = 'blue' , alpha = .35)
+    plt.plot(ALGO2_PORTFOLIO_DF['value'], label = 'GRU_SIMPLE_STRAT', color = 'purple' , alpha = .35)
+
+    #     plt.plot(Hill_DF['value'], label = 'HILL', color = 'orange' , alpha = .35)
+    plt.legend(loc = 'upper left')
+
+
+preds_arr = model.predict(X_test)
+MSE_ARR_2.append(mean_squared_error(y_test, preds_arr))
+
+# df = yf.download(STOCKS[0], start='2010-06-28', interval='1d', end='2022-05-19',progress=False)[['Close']]
+
+df = df.tail(y_test.shape[0])
+
+
+# print(df)
+ShortEMA = df.Close.ewm(span=12, adjust=False).mean()
+#Calculate the long term exponential moving average (EMA)
+LongEMA = df.Close.ewm(span=26, adjust=False).mean()
+#Calculate the MACD line
+MACD = ShortEMA - LongEMA
+signal = MACD.ewm(span=9, adjust=False).mean()
+df['MACD'] = MACD
+df['Signal Line'] = signal
+
+#THIS CALCULATS PORTFOLIO VALUES FOR BASELINE MODELS 
+# #Create buy and sell column 
+a = buy_sell(df)
+Buys = a[0]
+Sells = a[1]
+Closes = df['Close']
+df['Buy_Signal_Price'] = a[0]
+df['Sell_Signal_Price'] = a[1]
+profit = 0
+index = 0 
+end = 0
+
+PORTFOLIO_DF = pd.DataFrame(np.zeros((len(Buys), 1)), columns = ['value'])
+CAPITAL = 100000
+SHARES = 0 
+All_Cash = True
+All_Shares = False 
+CurPortVal = CAPITAL
+
+#find first buy position
+for i in range(0, len(Buys)): 
+    if np.isnan(Buys[i]) == False:
+       index = i
+       SHARES = CAPITAL / Buys[index]
+       PORTFOLIO_DF.iloc[:(index+1),:] = CAPITAL 
+       All_Shares = True
+       All_Cash = False 
+       break 
+
+    #find last sell position
+for y in reversed(range(0, len(a[0]))):
+    if np.isnan(Sells[y]) == False:
+        end = y
+        break 
+
+please = index 
+#start calculating profit 
+for j in range(index, end+1): 
+    if (j > index) & (All_Shares == True): 
+       PORTFOLIO_DF.iloc[(j),:] = SHARES * Closes[j]
+       CurPortVal = SHARES * Closes[j]
+#        print(Closes[j])
+    elif (j > index) & (All_Shares == False):
+       PORTFOLIO_DF.iloc[(j),:] = CurPortVal
+    if np.isnan(Sells[j]) == False: #sell signal reached
+       profit = profit + (Sells[j] - Buys[please])
+       CAPITAL = CurPortVal
+       All_Shares = False
+    if np.isnan(Buys[j]) == False:
+       please = j
+       All_Shares = True 
+       SHARES = CAPITAL / Buys[please]
+
+# Show the data
+print(profit)
+PORTFOLIO_DF.iloc[end+1:,:] = CurPortVal
+# MACD_PORTFOLIOS_2.append(PORTFOLIO_DF)
+
+# PORTFOLIO_DF
+# Now calculate just holding portfolio 
+HOLD_PORTFOLIO_DF = pd.DataFrame(np.zeros((len(Buys), 1)), columns = ['value'])
+START_VALUE = 100000
+HOLD_SHARES = START_VALUE / Closes[0]
+
+for w in range(0, len(Buys)): 
+    HOLD_PORTFOLIO_DF.iloc[w,:] = HOLD_SHARES * Closes[w]
+# HOLD_PORTFOLIOS_2.append(HOLD_PORTFOLIO_DF)
+
+#predictions portfolios 
+
+preds = pd.DataFrame(scale.inverse_transform(preds_arr.reshape(-1, 1)),columns=['prediction_tmrow'])
+preds = preds.set_index(df.index)
+preds = preds.assign(five_day_average=df['Close'].rolling(5).mean().shift(1))
+preds = preds.assign(actual=df['Close'])
+preds = preds.assign(actual_price_tmrow=df['Close'].shift(-1).values[0:(len(df))])
+
+
+ALGO_Capital = 100000
+ALGO_CurPorVal = ALGO_Capital
+ALGO_PORTFOLIO_DF = pd.DataFrame(np.zeros((len(Buys), 1)), columns = ['value']) + ALGO_CurPorVal
+ALGO_STOCK = 0
+ALGO_Shares = False 
+
+
+for b in range(5, (len(Buys))):
+    tmrow_pred = preds.iloc[b,0]
+    five_avg = preds.iloc[b,1]
+    if (b > 5) & (ALGO_Shares == True): 
+       ALGO_CurPorVal = ALGO_STOCK * preds.iloc[b,2]
+       ALGO_PORTFOLIO_DF.iloc[(b),:] = ALGO_CurPorVal
+    elif (b > 5) & (ALGO_Shares == False):
+       ALGO_PORTFOLIO_DF.iloc[(b),:] = ALGO_CurPorVal
+    if (tmrow_pred > five_avg) & (ALGO_Shares == False) : 
+        ALGO_STOCK = ALGO_CurPorVal / preds.iloc[b,2]
+        ALGO_Shares = True
+    elif (tmrow_pred < five_avg) & (ALGO_Shares == False) : 
+        ALGO_STOCK = ALGO_CurPorVal / preds.iloc[b,2]
+        ALGO_Shares = True
+    elif (tmrow_pred < five_avg) & (ALGO_Shares == True): #Sell signal reached  
+        ALGO_Shares = False 
+        ALGO_CurPorVal = ALGO_STOCK * preds.iloc[b,2]
+        ALGO_STOCK = 0 
+
+# ALGO_PORTFOLIOS_2.append(ALGO_PORTFOLIO_DF)
+
+# Last simple algo strat 2 
+ALGO2_Capital = 100000
+ALGO2_CurPorVal = ALGO2_Capital
+ALGO2_PORTFOLIO_DF = pd.DataFrame(np.zeros((len(Buys), 1)), columns = ['value']) + ALGO2_CurPorVal
+ALGO2_STOCK = 0
+ALGO2_Shares = False 
+
+for z in range(0, (len(df))):
+    today_price = preds.iloc[z,2]
+    tmrow_prediction = preds.iloc[z,0]
+#         print(ALGO2_STOCK)
+#         print(today_price)
+    #first set current portfolio value 
+    if (ALGO2_Shares == False):
+        ALGO2_PORTFOLIO_DF.iloc[(z),:] = ALGO2_CurPorVal
+    elif (ALGO2_Shares == True):
+        ALGO2_PORTFOLIO_DF.iloc[(z),:] = ALGO2_STOCK * today_price
+    if (tmrow_prediction > today_price) & (ALGO2_Shares == False): #buy in 
+        ALGO2_Shares = True
+        ALGO2_STOCK = ALGO2_CurPorVal / today_price 
+    elif (tmrow_prediction < today_price) & (ALGO2_Shares == True): #sell
+        ALGO2_Shares = False
+        ALGO2_CurPorVal = ALGO2_STOCK * today_price
+        ALGO2_STOCK = 0
+
+PERCENT_DIFF_ARR_2.append((ALGO2_PORTFOLIO_DF.iloc[(len(Buys)-1)]['value'] - HOLD_PORTFOLIO_DF.iloc[(len(Buys)-1)]['value']) / HOLD_PORTFOLIO_DF.iloc[(len(Buys)-1)]['value'] * 100)
+
+preds['up_down_actual'] = np.where((preds['actual_price_tmrow'] >= preds['actual']) , 1, 0)
+preds['up_down_preds'] = np.where((preds['prediction_tmrow'] >= preds['actual'] ), 1, 0)
+
+preds_analysis = preds.iloc[0:(len(Buys)-1), 4:6]
+preds_analysis['correct_pred'] = np.where( ((preds_analysis['up_down_actual'] == 1) & (preds_analysis['up_down_preds'] == 1)) | ((preds_analysis['up_down_actual'] == 0) & (preds_analysis['up_down_preds'] == 0)), 1, 0 )
+preds_analysis['correct_down_pred'] = np.where( ((preds_analysis['up_down_actual'] == 0) & (preds_analysis['up_down_preds'] == 0))  , 1, 0 )
+preds_analysis['down_actual'] = np.where( (preds_analysis['up_down_actual'] == 0) , 1, 0 )
+
+ACCURACY_ARR_2.append(np.mean(preds_analysis['correct_pred']))
+
+# total_down_preds
+DOWN_ACCUARCY_ARR_2.append(preds_analysis['correct_down_pred'].sum()  /  preds_analysis['down_actual'].sum())
+
+
+
+plt.figure(figsize = (12.2, 6.5))
+plt.title('PORTFOLIO VALUE ')
+# plt.scatter(df.index, PORTFOLIO_DF['value'], color = 'black', label = 'bruh',  alpha = .2)
+plt.plot(PORTFOLIO_DF['value'], label = 'MACD', color = 'red' , alpha = .35)
+plt.plot(HOLD_PORTFOLIO_DF['value'], label = 'HOLD', color = 'green' , alpha = .35)
+plt.plot(ALGO_PORTFOLIO_DF['value'], label = 'PLS_STRAT_1', color = 'blue' , alpha = .35)
+plt.plot(ALGO2_PORTFOLIO_DF['value'], label = 'PLS_STRAT_2', color = 'purple' , alpha = .2)
+
+#     plt.plot(Hill_DF['value'], label = 'HILL', color = 'orange' , alpha = .35)
+plt.legend(loc = 'upper left')
+
+ALGO2_PORTFOLIO_DF
+
+DOWN_ACCUARCY_ARR_2
+
+
+
+plt.figure(figsize = (12.2, 6.5))
+plt.title('PLS Algorithm Profit')
+plt.plot(list(range(1,(len(EPOCHS_MSE_ON_TEST)+1))) , EPOCHS_MSE_ON_TEST)
+plt.scatter(list(range(1,(len(EPOCHS_MSE_ON_TEST)+1))) , EPOCHS_MSE_ON_TEST)
+plt.ylabel("Buy and Hold Strategy Outperformance (Percentage)")
+plt.xlabel("Stock 5-Year Monthly BETA")
+
+# len(EPOCHS_MSE_ON_TEST+1)
+# list(range(1,(len(EPOCHS_MSE_ON_TEST)+1)))
+
+# master code 
+TRAIN_PERCENT = 0.7
+BETAS = [0.44, 0.50,  0.58, 0.64, 0.66,0.87, 1.00, 1.06,  1.12, 1.14, 1.14, 1.19, 1.42, 1.52, 2.08]
+STOCKS = ['PG', 'WMT', 'KO', 'TM', 'JNJ', 'BRK-B', 'SPY', 'GOOG', 'AMZN' ,'CVX', 'WFC', 'AAPL', 'NVDA', 'BBY', 'TSLA']
+MACD_PORTFOLIOS_2 = []
+HOLD_PORTFOLIOS_2 = []
+ALGO_PORTFOLIOS_2 = []
+ALGO2_PORTFOLIOS_2 = []
+MSE_ARR_2 = []
+PERCENT_DIFF_ARR_2 = []
+ACCURACY_ARR_2 = []
+DOWN_ACCUARCY_ARR_2 = []
+MSE_ON_TRAIN3 = []
+
+
+for i in range(0,len(STOCKS)):
+    df = yf.download(STOCKS[i], start='2010-06-28', interval='1d', end='2022-05-19',progress=False)[['Close']]
+    cl = df.Close.astype('float32')
+    train = cl[0: int(len(cl))]
+    scale = MinMaxScaler()
+    scale.fit(train.values.reshape(-1, 1))
+    cl = scale.transform(cl.values.reshape(-1, 1))
+
+    lb = 10
+    X, y = processData(cl, lb)
+
+    X_train, X_test = X[:int(X.shape[0] * TRAIN_PERCENT)], X[int(X.shape[0] * TRAIN_PERCENT):]
+    y_train, y_test = y[:int(y.shape[0] * TRAIN_PERCENT)],  y[int(X.shape[0] * TRAIN_PERCENT):]
+
+    X_test.shape
+
+    model = Sequential()
+    model.add(LSTM(256,input_shape=(lb,1)))
+    model.add(Dense(1))
+    model.compile(optimizer='adam',loss='mse')
+
+    #Reshape data for (Sample,Timestep,Features) 
+    X_train = X_train.reshape((X_train.shape[0],X_train.shape[1],1))
+    X_test = X_test.reshape((X_test.shape[0],X_test.shape[1],1))
+    # x_actual_test = x_actual_test.reshape((x_actual_test.shape[0], x_actual_test.shape[1], 1))
+
+    #Fit model with history to check for overfitting
+
+    # for i in range(1,300):
+    history = model.fit(X_train,y_train,epochs=150,shuffle=False, batch_size= 32)
+    #     EPOCHS_MSE_ON_TEST.append(mean_squared_error(y_test, model.predict(X_test)))
+
+    preds_arr = model.predict(X_test)
+    MSE_ARR_2.append(mean_squared_error(y_test, preds_arr))
+    MSE_ON_TRAIN3.append(mean_squared_error(y_train, model.predict(X_train)))
+    
+    # df = yf.download(STOCKS[0], start='2010-06-28', interval='1d', end='2022-05-19',progress=False)[['Close']]
+
+    df = df.tail(y_test.shape[0])
+
+
+    # print(df)
+    ShortEMA = df.Close.ewm(span=12, adjust=False).mean()
+    #Calculate the long term exponential moving average (EMA)
+    LongEMA = df.Close.ewm(span=26, adjust=False).mean()
+    #Calculate the MACD line
+    MACD = ShortEMA - LongEMA
+    signal = MACD.ewm(span=9, adjust=False).mean()
+    df['MACD'] = MACD
+    df['Signal Line'] = signal
+
+    #THIS CALCULATS PORTFOLIO VALUES FOR BASELINE MODELS 
+    # #Create buy and sell column 
+    a = buy_sell(df)
+    Buys = a[0]
+    Sells = a[1]
+    Closes = df['Close']
+    df['Buy_Signal_Price'] = a[0]
+    df['Sell_Signal_Price'] = a[1]
+    profit = 0
+    index = 0 
+    end = 0
+
+    PORTFOLIO_DF = pd.DataFrame(np.zeros((len(Buys), 1)), columns = ['value'])
+    CAPITAL = 100000
+    SHARES = 0 
+    All_Cash = True
+    All_Shares = False 
+    CurPortVal = CAPITAL
+
+    #find first buy position
+    for i in range(0, len(Buys)): 
+        if np.isnan(Buys[i]) == False:
+           index = i
+           SHARES = CAPITAL / Buys[index]
+           PORTFOLIO_DF.iloc[:(index+1),:] = CAPITAL 
+           All_Shares = True
+           All_Cash = False 
+           break 
+
+        #find last sell position
+    for y in reversed(range(0, len(a[0]))):
+        if np.isnan(Sells[y]) == False:
+            end = y
+            break 
+
+    please = index 
+    #start calculating profit 
+    for j in range(index, end+1): 
+        if (j > index) & (All_Shares == True): 
+           PORTFOLIO_DF.iloc[(j),:] = SHARES * Closes[j]
+           CurPortVal = SHARES * Closes[j]
+    #        print(Closes[j])
+        elif (j > index) & (All_Shares == False):
+           PORTFOLIO_DF.iloc[(j),:] = CurPortVal
+        if np.isnan(Sells[j]) == False: #sell signal reached
+           profit = profit + (Sells[j] - Buys[please])
+           CAPITAL = CurPortVal
+           All_Shares = False
+        if np.isnan(Buys[j]) == False:
+           please = j
+           All_Shares = True 
+           SHARES = CAPITAL / Buys[please]
+
+    # Show the data
+    print(profit)
+    PORTFOLIO_DF.iloc[end+1:,:] = CurPortVal
+    # MACD_PORTFOLIOS_2.append(PORTFOLIO_DF)
+
+    # PORTFOLIO_DF
+    # Now calculate just holding portfolio 
+    HOLD_PORTFOLIO_DF = pd.DataFrame(np.zeros((len(Buys), 1)), columns = ['value'])
+    START_VALUE = 100000
+    HOLD_SHARES = START_VALUE / Closes[0]
+
+    for w in range(0, len(Buys)): 
+        HOLD_PORTFOLIO_DF.iloc[w,:] = HOLD_SHARES * Closes[w]
+    HOLD_PORTFOLIOS_2.append(HOLD_PORTFOLIO_DF)
+
+    #predictions portfolios 
+
+    preds = pd.DataFrame(scale.inverse_transform(preds_arr.reshape(-1, 1)),columns=['prediction_tmrow'])
+    preds = preds.set_index(df.index)
+    preds = preds.assign(five_day_average=df['Close'].rolling(5).mean().shift(1))
+    preds = preds.assign(actual=df['Close'])
+    preds = preds.assign(actual_price_tmrow=df['Close'].shift(-1).values[0:(len(df))])
+
+
+    ALGO_Capital = 100000
+    ALGO_CurPorVal = ALGO_Capital
+    ALGO_PORTFOLIO_DF = pd.DataFrame(np.zeros((len(Buys), 1)), columns = ['value']) + ALGO_CurPorVal
+    ALGO_STOCK = 0
+    ALGO_Shares = False 
+
+
+    for b in range(5, (len(Buys))):
+        tmrow_pred = preds.iloc[b,0]
+        five_avg = preds.iloc[b,1]
+        if (b > 5) & (ALGO_Shares == True): 
+           ALGO_CurPorVal = ALGO_STOCK * preds.iloc[b,2]
+           ALGO_PORTFOLIO_DF.iloc[(b),:] = ALGO_CurPorVal
+        elif (b > 5) & (ALGO_Shares == False):
+           ALGO_PORTFOLIO_DF.iloc[(b),:] = ALGO_CurPorVal
+        if (tmrow_pred > five_avg) & (ALGO_Shares == False) : 
+            ALGO_STOCK = ALGO_CurPorVal / preds.iloc[b,2]
+            ALGO_Shares = True
+        elif (tmrow_pred < five_avg) & (ALGO_Shares == False) : 
+            ALGO_STOCK = ALGO_CurPorVal / preds.iloc[b,2]
+            ALGO_Shares = True
+        elif (tmrow_pred < five_avg) & (ALGO_Shares == True): #Sell signal reached  
+            ALGO_Shares = False 
+            ALGO_CurPorVal = ALGO_STOCK * preds.iloc[b,2]
+            ALGO_STOCK = 0 
+
+    # ALGO_PORTFOLIOS_2.append(ALGO_PORTFOLIO_DF)
+
+    # Last simple algo strat 2 
+    ALGO2_Capital = 100000
+    ALGO2_CurPorVal = ALGO2_Capital
+    ALGO2_PORTFOLIO_DF = pd.DataFrame(np.zeros((len(Buys), 1)), columns = ['value']) + ALGO2_CurPorVal
+    ALGO2_STOCK = 0
+    ALGO2_Shares = False 
+
+    for z in range(0, (len(df))):
+        today_price = preds.iloc[z,2]
+        tmrow_prediction = preds.iloc[z,0]
+    #         print(ALGO2_STOCK)
+    #         print(today_price)
+        #first set current portfolio value 
+        if (ALGO2_Shares == False):
+            ALGO2_PORTFOLIO_DF.iloc[(z),:] = ALGO2_CurPorVal
+        elif (ALGO2_Shares == True):
+            ALGO2_PORTFOLIO_DF.iloc[(z),:] = ALGO2_STOCK * today_price
+        if (tmrow_prediction > today_price) & (ALGO2_Shares == False): #buy in 
+            ALGO2_Shares = True
+            ALGO2_STOCK = ALGO2_CurPorVal / today_price 
+        elif (tmrow_prediction < today_price) & (ALGO2_Shares == True): #sell
+            ALGO2_Shares = False
+            ALGO2_CurPorVal = ALGO2_STOCK * today_price
+            ALGO2_STOCK = 0
+
+    
+    ALGO2_PORTFOLIOS_2.append(ALGO2_PORTFOLIO_DF)
+    PERCENT_DIFF_ARR_2.append((ALGO2_PORTFOLIO_DF.iloc[(len(Buys)-1)]['value'] - HOLD_PORTFOLIO_DF.iloc[(len(Buys)-1)]['value']) / HOLD_PORTFOLIO_DF.iloc[(len(Buys)-1)]['value'] * 100)
+
+    preds['up_down_actual'] = np.where((preds['actual_price_tmrow'] >= preds['actual']) , 1, 0)
+    preds['up_down_preds'] = np.where((preds['prediction_tmrow'] >= preds['actual'] ), 1, 0)
+
+    preds_analysis = preds.iloc[0:(len(Buys)-1), 4:6]
+    preds_analysis['correct_pred'] = np.where( ((preds_analysis['up_down_actual'] == 1) & (preds_analysis['up_down_preds'] == 1)) | ((preds_analysis['up_down_actual'] == 0) & (preds_analysis['up_down_preds'] == 0)), 1, 0 )
+    preds_analysis['correct_down_pred'] = np.where( ((preds_analysis['up_down_actual'] == 0) & (preds_analysis['up_down_preds'] == 0))  , 1, 0 )
+    preds_analysis['down_actual'] = np.where( (preds_analysis['up_down_actual'] == 0) , 1, 0 )
+
+    ACCURACY_ARR_2.append(np.mean(preds_analysis['correct_pred']))
+
+    # total_down_preds
+    DOWN_ACCUARCY_ARR_2.append(preds_analysis['correct_down_pred'].sum()  /  preds_analysis['down_actual'].sum())
+
+
+
+    plt.figure(figsize = (12.2, 6.5))
+    plt.title('PORTFOLIO VALUE ')
+    # plt.scatter(df.index, PORTFOLIO_DF['value'], color = 'black', label = 'bruh',  alpha = .2)
+    plt.plot(PORTFOLIO_DF['value'], label = 'MACD', color = 'red' , alpha = .35)
+    plt.plot(HOLD_PORTFOLIO_DF['value'], label = 'HOLD', color = 'green' , alpha = .35)
+    plt.plot(ALGO_PORTFOLIO_DF['value'], label = 'LMST_ADVANCED_STRAT', color = 'blue' , alpha = .35)
+    plt.plot(ALGO2_PORTFOLIO_DF['value'], label = 'LMST_SIMPLE_STRAT', color = 'purple' , alpha = .35)
+
+    #     plt.plot(Hill_DF['value'], label = 'HILL', color = 'orange' , alpha = .35)
+    plt.legend(loc = 'upper left')
